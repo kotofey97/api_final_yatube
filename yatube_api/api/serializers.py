@@ -1,7 +1,7 @@
-from django.db.models import query
 from rest_framework import serializers
 from rest_framework.relations import SlugRelatedField
 from django.contrib.auth import get_user_model
+from rest_framework.validators import UniqueTogetherValidator
 
 from posts.models import Comment, Post, Group, Follow
 
@@ -39,11 +39,25 @@ class FollowSerializer(serializers.ModelSerializer):
         queryset=User.objects.all(),
         default=serializers.CurrentUserDefault()
     )
-    following = serializers.SlugRelatedField( 
-        slug_field='username', 
-        queryset=User.objects.all(), 
+    following = serializers.SlugRelatedField(
+        slug_field='username',
+        queryset=User.objects.all(),
     )
 
     class Meta:
         fields = '__all__'
         model = Follow
+        validators = [UniqueTogetherValidator(
+            queryset=Follow.objects.all(), fields=['user', 'following'],
+            message='Невозможно подписаться на автора еще раз'
+        )]
+
+    def validate(self, data):
+        if (
+            self.context['request'].method == 'POST'
+            and data['user'] == data['following']
+        ):
+            raise serializers.ValidationError(
+                'Невозможно подписаться на самого себя'
+            )
+        return data
